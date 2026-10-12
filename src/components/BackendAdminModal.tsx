@@ -154,7 +154,7 @@ export const BackendAdminModal: React.FC<Props> = ({
   const handleCreateNewSheet = async () => {
     setIsCreating(true);
     try {
-      let activeToken = accessToken;
+      let activeToken = accessToken || localStorage.getItem('tb_care_google_token');
       if (!activeToken) {
         try {
           const authRes = await googleSignIn();
@@ -168,19 +168,16 @@ export const BackendAdminModal: React.FC<Props> = ({
       }
 
       if (!activeToken) {
-        throw new Error('ไม่พบสิทธิ์การเชื่อมต่อ Google OAuth');
+        throw new Error('ไม่พบสิทธิ์การเชื่อมต่อ Google OAuth (กรุณายืนยันสิทธิ์ Google)');
       }
 
       const res = await createTBSheet(activeToken);
       onConfigChange(res.spreadsheetId, res.spreadsheetUrl, res.title);
       showToast(true, 'สร้าง Google Sheet ฐานข้อมูลระบบสำเร็จเรียบร้อย พร้อม 5 ตารางหลัก');
     } catch (err: any) {
+      console.error('Error creating new sheet:', err);
       const msg = err.message || '';
-      if (msg.includes('invalid authentication credentials') || msg.includes('Expected OAuth 2')) {
-        showToast(false, 'ต้องลงชื่อเข้าใช้ Google Account เพื่อสร้างไฟล์ หรือใช้ "เชื่อมโยง Sheet ที่มีอยู่แล้ว"');
-      } else {
-        showToast(false, msg || 'เกิดข้อผิดพลาดในการสร้าง Sheet');
-      }
+      showToast(false, msg || 'เกิดข้อผิดพลาดในการสร้าง Sheet');
     } finally {
       setIsCreating(false);
     }
@@ -416,11 +413,12 @@ export const BackendAdminModal: React.FC<Props> = ({
                     <div>
                       <div className="flex items-center gap-2">
                         <h4 className="text-sm font-bold text-slate-900">
-                          {spreadsheetName || 'ยังไม่ได้เชื่อมต่อ Google Sheet'}
+                          {spreadsheetName || (spreadsheetId ? 'Google Sheet ฐานข้อมูลระบบวัณโรค' : 'ยังไม่ได้เชื่อมต่อ Google Sheet')}
                         </h4>
                         {spreadsheetId ? (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
-                            เชื่อมต่อแล้ว
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            เชื่อมต่อแล้ว (พร้อมซิงค์)
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-full">

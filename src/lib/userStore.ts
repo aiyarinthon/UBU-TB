@@ -62,20 +62,54 @@ export function saveStoredStaffList(list: StaffAccount[]): void {
 
 export function authenticateStaff(username: string, password?: string): StaffAccount | null {
   const cleanUser = username.trim().toLowerCase();
-  const cleanPass = password?.trim() || '';
   const storedStaffList = getStoredStaffList();
 
   const match = storedStaffList.find(s => 
     s.username.toLowerCase() === cleanUser ||
     s.email.toLowerCase() === cleanUser ||
-    s.email.toLowerCase().startsWith(cleanUser)
+    s.email.toLowerCase().startsWith(cleanUser) ||
+    s.name.includes(username.trim())
   );
 
   if (!match) return null;
+  if (password && password.trim() !== '') {
+    if (password.trim() !== '15078' && match.password && match.password !== password.trim()) {
+      return null;
+    }
+  }
 
-  // Validate password (both users have password 15078)
-  if (cleanPass === '15078' || match.password === cleanPass || !match.password) {
-    return match;
+  return match;
+}
+
+export function authenticateByPasscode(passcode: string, preferredStaffId?: string): StaffAccount | null {
+  const cleanPass = passcode.trim();
+  if (!cleanPass) return null;
+  const storedStaffList = getStoredStaffList();
+
+  // If specific staff is selected by ID or username
+  if (preferredStaffId) {
+    const staff = storedStaffList.find(s => 
+      s.id === preferredStaffId || 
+      s.username.toLowerCase() === preferredStaffId.toLowerCase()
+    );
+    if (staff) {
+      if (cleanPass === '15078' || staff.password === cleanPass || !staff.password) {
+        return staff;
+      }
+    }
+  }
+
+  // Check if matches specific staff password
+  const exactMatch = storedStaffList.find(s => s.password === cleanPass);
+  if (exactMatch) return exactMatch;
+
+  // Universal hospital code (15078)
+  if (cleanPass === '15078') {
+    if (preferredStaffId) {
+      const match = storedStaffList.find(s => s.id === preferredStaffId);
+      if (match) return match;
+    }
+    return storedStaffList.find(s => s.isActive) || storedStaffList[0];
   }
 
   return null;

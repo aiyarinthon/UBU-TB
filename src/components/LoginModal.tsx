@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Lock, 
@@ -7,10 +7,14 @@ import {
   Stethoscope, 
   AlertCircle,
   LogIn,
-  X
+  X,
+  ShieldCheck
 } from 'lucide-react';
 import { StaffAccount, UserProfile } from '../types';
-import { authenticateStaff, resolveUserProfile } from '../lib/userStore';
+import { 
+  authenticateStaff, 
+  resolveUserProfile 
+} from '../lib/userStore';
 
 interface Props {
   isOpen: boolean;
@@ -33,6 +37,14 @@ export const LoginModal: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (isOpen) {
+      setUsername('');
+      setPassword('');
+      setErrorMsg(null);
+    }
+  }, [isOpen, currentUserProfile]);
+
   if (!isOpen) return null;
 
   const handleLogin = (e?: React.FormEvent) => {
@@ -43,6 +55,7 @@ export const LoginModal: React.FC<Props> = ({
       setErrorMsg('กรุณากรอกชื่อผู้ใช้งาน (Username)');
       return;
     }
+
     if (!password.trim()) {
       setErrorMsg('กรุณากรอกรหัสผ่าน (Password)');
       return;
@@ -52,7 +65,7 @@ export const LoginModal: React.FC<Props> = ({
     const staff = authenticateStaff(username.trim(), password.trim());
 
     if (!staff) {
-      setErrorMsg('ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง');
+      setErrorMsg('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
       setIsSubmitting(false);
       return;
     }
@@ -80,6 +93,7 @@ export const LoginModal: React.FC<Props> = ({
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 text-teal-200 hover:text-white hover:bg-white/10 rounded-full transition cursor-pointer"
+              title="ปิดหน้าต่าง"
             >
               <X className="w-5 h-5" />
             </button>
@@ -91,7 +105,7 @@ export const LoginModal: React.FC<Props> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                <span>เข้าสู่ระบบ</span>
+                <span>เข้าสู่ระบบบุคลากร</span>
               </h2>
               <p className="text-xs text-teal-100/90 font-light">
                 โรงพยาบาลมหาวิทยาลัยอุบลราชธานี
@@ -101,29 +115,28 @@ export const LoginModal: React.FC<Props> = ({
         </div>
 
         <div className="p-6">
-          {/* Form */}
-          <form onSubmit={handleLogin} className="space-y-4">
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+          {errorMsg && (
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
                 ชื่อผู้ใช้งาน (Username)
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <User className="w-4 h-4" />
+                  <User className="w-4 h-4 text-slate-400" />
                 </div>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="กรอกชื่อผู้ใช้งาน"
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                  placeholder="เช่น aiyarinthon หรือ chudapa"
+                  className="w-full pl-10 pr-3.5 py-3 bg-slate-50 hover:bg-white focus:bg-white border-2 border-slate-300 focus:border-teal-600 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500/20 transition"
                   autoComplete="username"
                   autoFocus
                 />
@@ -136,20 +149,21 @@ export const LoginModal: React.FC<Props> = ({
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="w-4 h-4" />
+                  <Lock className="w-4 h-4 text-slate-400" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="กรอกรหัสผ่าน"
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 hover:bg-white focus:bg-white border-2 border-slate-300 focus:border-teal-600 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-teal-500/20 transition"
                   autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  title={showPassword ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -158,13 +172,19 @@ export const LoginModal: React.FC<Props> = ({
 
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 mt-2 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 active:scale-[0.99] text-white rounded-xl font-bold text-xs shadow-md shadow-teal-700/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              disabled={isSubmitting || !username.trim() || !password.trim()}
+              className="w-full py-3.5 mt-2 bg-gradient-to-r from-teal-700 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 active:scale-[0.99] text-white rounded-xl font-bold text-xs shadow-md shadow-teal-700/20 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <LogIn className="w-4 h-4" />
               <span>{isSubmitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}</span>
             </button>
           </form>
+
+          {/* Security & PDPA notice footer */}
+          <div className="mt-6 pt-3 border-t border-slate-100 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+            <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
+            <span>ระบบความปลอดภัยเวชระเบียน โรงพยาบาลมหาวิทยาลัยอุบลราชธานี</span>
+          </div>
         </div>
       </div>
     </div>

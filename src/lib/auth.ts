@@ -98,6 +98,12 @@ export const getAccessToken = async (): Promise<string | null> => {
 
 export const logout = async () => {
   await signOut(auth);
+  // Do NOT wipe cachedAccessToken or localStorage TOKEN_STORAGE_KEY
+  // so that staff relogin or page reload maintains Google Sheet connection without re-asking OAuth permission!
+};
+
+export const clearGoogleConnection = async () => {
+  await signOut(auth);
   cachedAccessToken = null;
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY);

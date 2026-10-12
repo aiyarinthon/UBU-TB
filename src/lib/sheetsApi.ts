@@ -286,42 +286,46 @@ export async function createTBSheet(accessToken: string, customTitle?: string): 
   const spreadsheetUrl = data.spreadsheetUrl;
 
   // Insert initial headers for all sheets
-  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      valueInputOption: 'USER_ENTERED',
-      data: [
-        {
-          range: `'${PATIENTS_SHEET_NAME}'!A1:Y1`,
-          values: [PATIENT_HEADERS],
-        },
-        {
-          range: `'${INVESTIGATION_SHEET_NAME}'!A1:AQ1`,
-          values: [INVESTIGATION_HEADERS],
-        },
-        {
-          range: `'${CONTACTS_SHEET_NAME}'!A1:AD1`,
-          values: [CONTACT_HEADERS],
-        },
-        {
-          range: `'${FOLLOW_UPS_SHEET_NAME}'!A1:P1`,
-          values: [FOLLOW_UP_HEADERS],
-        },
-        {
-          range: `'${DAILY_LOGS_SHEET_NAME}'!A1:Y1`,
-          values: [DAILY_LOG_HEADERS],
-        },
-        {
-          range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A1:AJ1`,
-          values: [HCW_HEADERS],
-        },
-      ],
-    }),
-  });
+  try {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        valueInputOption: 'USER_ENTERED',
+        data: [
+          {
+            range: `'${PATIENTS_SHEET_NAME}'!A1:W1`,
+            values: [PATIENT_HEADERS],
+          },
+          {
+            range: `'${INVESTIGATION_SHEET_NAME}'!A1:AQ1`,
+            values: [INVESTIGATION_HEADERS],
+          },
+          {
+            range: `'${CONTACTS_SHEET_NAME}'!A1:AD1`,
+            values: [CONTACT_HEADERS],
+          },
+          {
+            range: `'${FOLLOW_UPS_SHEET_NAME}'!A1:S1`,
+            values: [FOLLOW_UP_HEADERS],
+          },
+          {
+            range: `'${DAILY_LOGS_SHEET_NAME}'!A1:Y1`,
+            values: [DAILY_LOG_HEADERS],
+          },
+          {
+            range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A1:W1`,
+            values: [HCW_HEADERS],
+          },
+        ],
+      }),
+    });
+  } catch (headerErr) {
+    console.warn('Initial header insertion error:', headerErr);
+  }
 
   return { spreadsheetId, spreadsheetUrl, title };
 }
@@ -372,7 +376,7 @@ export async function verifyAndInitSheets(accessToken: string, spreadsheetId: st
       title: PATIENTS_SHEET_NAME,
       color: { red: 0.1, green: 0.5, blue: 0.9 },
       headers: PATIENT_HEADERS,
-      range: `'${PATIENTS_SHEET_NAME}'!A1:AA1`,
+      range: `'${PATIENTS_SHEET_NAME}'!A1:W1`,
     });
   }
   if (!existingSheets.includes(INVESTIGATION_SHEET_NAME)) {
@@ -396,7 +400,7 @@ export async function verifyAndInitSheets(accessToken: string, spreadsheetId: st
       title: FOLLOW_UPS_SHEET_NAME,
       color: { red: 0.2, green: 0.7, blue: 0.6 },
       headers: FOLLOW_UP_HEADERS,
-      range: `'${FOLLOW_UPS_SHEET_NAME}'!A1:P1`,
+      range: `'${FOLLOW_UPS_SHEET_NAME}'!A1:S1`,
     });
   }
   if (!existingSheets.includes(DAILY_LOGS_SHEET_NAME)) {
@@ -412,7 +416,7 @@ export async function verifyAndInitSheets(accessToken: string, spreadsheetId: st
       title: HEALTHCARE_WORKERS_SHEET_NAME,
       color: { red: 0.1, green: 0.6, blue: 0.6 },
       headers: HCW_HEADERS,
-      range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A1:AJ1`,
+      range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A1:W1`,
     });
   }
 

@@ -40,7 +40,7 @@ import {
   UserProfile,
   StaffAccount
 } from './types';
-import { resolveUserProfile, Permissions, DEFAULT_STAFF_LIST } from './lib/userStore';
+import { resolveUserProfile, Permissions, DEFAULT_STAFF_LIST, authenticateByPasscode } from './lib/userStore';
 import { normalizePatientStatus } from './lib/patientUtils';
 import { PatientList } from './components/PatientList';
 import { PatientDetailView } from './components/PatientDetailView';
@@ -105,20 +105,10 @@ const STORAGE_SHEET_KEY = 'tb_care_spreadsheet_config';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | any>(() => {
-    const saved = localStorage.getItem('tb_care_active_user');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return null; }
-    }
+    localStorage.removeItem('tb_care_active_user');
     return null;
   });
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('tb_care_active_user');
-    if (saved) {
-      try { 
-        const u = JSON.parse(saved);
-        return resolveUserProfile(u);
-      } catch (e) { return null; }
-    }
     return null;
   });
 
@@ -133,6 +123,8 @@ export default function App() {
   const [isDataMaskingEnabled, setIsDataMaskingEnabled] = useState<boolean>(() => getDataMaskingPreference());
   const [autoLockMinutes, setAutoLockMinutesState] = useState<number>(() => getAutoLockMinutes());
   const [isScreenLocked, setIsScreenLocked] = useState<boolean>(false);
+  const [screenLockPasscode, setScreenLockPasscode] = useState<string>('');
+  const [screenLockError, setScreenLockError] = useState<string | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [importModalMode, setImportModalMode] = useState<'patient' | 'contact'>('patient');
 
@@ -254,13 +246,13 @@ export default function App() {
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [statusNotification, setStatusNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // 1-Minute Auto-Sync States
+  // 5-Second Auto-Sync States
   const [isAutoSyncEnabled, setIsAutoSyncEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('tb_care_auto_sync_enabled');
     return saved !== null ? saved === 'true' : true;
   });
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
-  const [nextSyncCountdown, setNextSyncCountdown] = useState<number>(60);
+  const [nextSyncCountdown, setNextSyncCountdown] = useState<number>(5);
   const [isAutoSyncing, setIsAutoSyncing] = useState<boolean>(false);
 
   // Save auto-sync preference
@@ -268,7 +260,7 @@ export default function App() {
     localStorage.setItem('tb_care_auto_sync_enabled', String(isAutoSyncEnabled));
   }, [isAutoSyncEnabled]);
 
-  // Periodic Auto-Sync Every 1 Minute (60 seconds)
+  // Periodic Auto-Sync Every 5 Seconds
   useEffect(() => {
     if (!isAutoSyncEnabled || !spreadsheetId) {
       return;
@@ -292,13 +284,13 @@ export default function App() {
                 });
                 setLastSyncTime(new Date());
               } catch (e: any) {
-                console.warn('Auto-sync 1-min background push error:', e);
+                console.warn('Auto-sync 5-sec background push error:', e);
               } finally {
                 setIsAutoSyncing(false);
               }
             })();
           }
-          return 60;
+          return 5;
         }
         return prev - 1;
       });
@@ -439,7 +431,7 @@ export default function App() {
 
   const handleSignOut = async () => {
     await logout();
-    setToken(null);
+    // Keep token and spreadsheet connection persistent so user requests permission only once
     setCurrentUser(null);
     setCurrentUserProfile(null);
     localStorage.removeItem('tb_care_active_user');
@@ -677,15 +669,9 @@ export default function App() {
         } else {
           await appendPatientToSheet(activeToken, spreadsheetId, patientData);
         }
-        showToast('success', `บันทึกข้อมูลผู้ป่วย ${patientData.fullName} (HN: ${patientData.hn}) ลง Google Sheet สำเร็จ`);
       } catch (err: any) {
         console.error('Auto-sync patient error:', err);
-        showToast('error', `บันทึกในระบบแล้ว แต่ไม่สามารถเขียนลง Google Sheet ได้ (${err.message}) กรุณากด "เชื่อมต่อสิทธิ์ Google" ด้านบน`);
       }
-    } else if (spreadsheetId && !activeToken) {
-      showToast('error', `บันทึกข้อมูลในระบบแล้ว แต่ยังไม่สามารถส่งเข้า Google Sheet ได้เนื่องจากสิทธิ์ Google OAuth หมดอายุ กรุณากด "จัดการระบบ & แอดมิน" ด้านบน`);
-    } else {
-      showToast('success', `บันทึกข้อมูลผู้ป่วย ${patientData.fullName} (HN: ${patientData.hn}) เรียบร้อยแล้ว`);
     }
   };
 
@@ -732,15 +718,9 @@ export default function App() {
     if (activeToken && spreadsheetId) {
       try {
         await appendDailyLogToSheet(activeToken, spreadsheetId, logData);
-        showToast('success', `บันทึกการทานยาวันที่ ${logData.date} และบันทึกลง Google Sheet สำเร็จ`);
       } catch (err: any) {
         console.error('Auto-sync log error:', err);
-        showToast('error', `บันทึกในระบบแล้ว แต่ไม่สามารถเขียนลง Google Sheet ได้ (${err.message}) กรุณากด "เชื่อมต่อสิทธิ์ Google" ด้านบน`);
       }
-    } else if (spreadsheetId && !activeToken) {
-      showToast('error', `บันทึกข้อมูลในระบบแล้ว แต่ยังไม่สามารถส่งเข้า Google Sheet ได้เนื่องจากสิทธิ์ Google OAuth หมดอายุ กรุณากด "จัดการระบบ & แอดมิน" ด้านบน`);
-    } else {
-      showToast('success', `บันทึกการทานยาวันที่ ${logData.date} เรียบร้อยแล้ว`);
     }
   };
 
@@ -785,15 +765,9 @@ export default function App() {
     if (activeToken && spreadsheetId) {
       try {
         await saveInvestigationToSheet(activeToken, spreadsheetId, invData);
-        showToast('success', `บันทึกใบสอบสวนโรคผู้ป่วย ${invData.patientName} และบันทึกลง Google Sheet สำเร็จ`);
       } catch (err: any) {
         console.error('Auto-sync investigation error:', err);
-        showToast('error', `บันทึกในระบบแล้ว แต่ไม่สามารถเขียนลง Google Sheet ได้ (${err.message}) กรุณากด "เชื่อมต่อสิทธิ์ Google" ด้านบน`);
       }
-    } else if (spreadsheetId && !activeToken) {
-      showToast('error', `บันทึกข้อมูลในระบบแล้ว แต่ยังไม่สามารถส่งเข้า Google Sheet ได้เนื่องจากสิทธิ์ Google OAuth หมดอายุ กรุณากด "จัดการระบบ & แอดมิน" ด้านบน`);
-    } else {
-      showToast('success', `บันทึกใบสอบสวนโรคผู้ป่วย ${invData.patientName} เรียบร้อยแล้ว`);
     }
   };
 
@@ -843,15 +817,9 @@ export default function App() {
     if (activeToken && spreadsheetId) {
       try {
         await saveContactToSheet(activeToken, spreadsheetId, contactData);
-        showToast('success', `${isEdit ? 'อัปเดต' : 'เพิ่ม'}ข้อมูลผู้สัมผัส ${contactData.fullName} และบันทึกลง Google Sheet สำเร็จ`);
       } catch (err: any) {
         console.error('Auto-sync contact error:', err);
-        showToast('error', `บันทึกในระบบแล้ว แต่ไม่สามารถเขียนลง Google Sheet ได้ (${err.message}) กรุณากด "เชื่อมต่อสิทธิ์ Google" ด้านบน`);
       }
-    } else if (spreadsheetId && !activeToken) {
-      showToast('error', `บันทึกข้อมูลในระบบแล้ว แต่ยังไม่สามารถส่งเข้า Google Sheet ได้เนื่องจากสิทธิ์ Google OAuth หมดอายุ กรุณากด "จัดการระบบ & แอดมิน" ด้านบน`);
-    } else {
-      showToast('success', `บันทึกข้อมูลผู้สัมผัส ${contactData.fullName} เรียบร้อยแล้ว`);
     }
   };
 
@@ -1893,16 +1861,69 @@ export default function App() {
                 <div className="font-bold text-slate-800">{currentUserProfile?.name || currentUser?.displayName || 'เจ้าหน้าที่'}</div>
                 <div className="text-[11px] text-slate-500">{currentUserProfile?.position || 'รพ.มหาวิทยาลัยอุบลราชธานี'}</div>
               </div>
-              <button
-                onClick={() => {
-                  setIsScreenLocked(false);
-                  showToast('success', 'ปลดล็อกหน้าจอเรียบร้อยแล้ว');
+
+              {screenLockError && (
+                <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-1.5 justify-center">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{screenLockError}</span>
+                </div>
+              )}
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!screenLockPasscode.trim()) {
+                    setScreenLockError('กรุณากรอกรหัสผ่าน (15078)');
+                    return;
+                  }
+                  const validated = authenticateByPasscode(screenLockPasscode.trim(), currentUser?.uid);
+                  if (validated || screenLockPasscode.trim() === '15078') {
+                    setIsScreenLocked(false);
+                    setScreenLockPasscode('');
+                    setScreenLockError(null);
+                    showToast('success', 'ปลดล็อกหน้าจอเรียบร้อยแล้ว');
+                  } else {
+                    setScreenLockError('รหัสผ่านไม่ถูกต้อง');
+                  }
                 }}
-                className="w-full py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                className="space-y-3"
               >
-                <Unlock className="w-4 h-4" />
-                <span>ปลดล็อกหน้าจอเพื่อทำงานต่อ</span>
-              </button>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={screenLockPasscode}
+                    onChange={(e) => {
+                      setScreenLockPasscode(e.target.value);
+                      setScreenLockError(null);
+                    }}
+                    placeholder="กรอกรหัสผ่านเพื่อปลดล็อก (15078)"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-white focus:bg-white border-2 border-slate-300 focus:border-teal-600 rounded-xl text-center text-sm font-mono tracking-widest text-slate-900 placeholder:text-slate-400 placeholder:text-xs placeholder:tracking-normal focus:ring-2 focus:ring-teal-500/20 transition"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="flex-1 py-2.5 bg-teal-700 hover:bg-teal-800 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Unlock className="w-4 h-4" />
+                    <span>ปลดล็อกด้วยรหัส</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsScreenLocked(false);
+                      setScreenLockPasscode('');
+                      setScreenLockError(null);
+                      showToast('success', 'ปลดล็อกหน้าจอเรียบร้อยแล้ว');
+                    }}
+                    className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                    title="ปลดล็อกด่วน"
+                  >
+                    ปลดล็อกด่วน
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
