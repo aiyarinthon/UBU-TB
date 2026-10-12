@@ -332,16 +332,7 @@ export const HealthcareWorkersView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {onResetInitialData && (
-            <button
-              onClick={onResetInitialData}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-              title="โหลดข้อมูลตัวอย่างบุคลากรทางการแพทย์"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-              <span>โหลดตัวอย่าง</span>
-            </button>
-          )}
+
 
           <button
             onClick={handleExportCsv}
