@@ -1,0 +1,1894 @@
+import { Patient, InvestigationForm, ContactPerson, ContactFollowUp, DailyLog, HealthcareWorker, HcwCxrRecord } from '../types';
+import { normalizePatientStatus } from './patientUtils';
+
+export const PATIENTS_SHEET_NAME = 'ผู้ป่วยวัณโรครายใหม่ (Patients)';
+export const INVESTIGATION_SHEET_NAME = 'การสอบสวนโรค (Investigation)';
+export const CONTACTS_SHEET_NAME = 'กลุ่มผู้สัมผัสโรค (Contacts)';
+export const FOLLOW_UPS_SHEET_NAME = 'บันทึกการติดตามตรวจ (Follow-ups)';
+export const DAILY_LOGS_SHEET_NAME = 'บันทึกอาการและยา (Daily Logs)';
+export const HEALTHCARE_WORKERS_SHEET_NAME = 'บุคลากรทางการแพทย์ (Healthcare Workers)';
+
+export function formatRange(sheetName: string, cellRange?: string): string {
+  const fullRange = cellRange ? `'${sheetName}'!${cellRange}` : `'${sheetName}'`;
+  return encodeURIComponent(fullRange);
+}
+
+export const HCW_HEADERS = [
+  'รหัสบุคลากร (ID)',
+  'รหัสพนักงาน (Staff ID)',
+  'HN',
+  'ชื่อ-นามสกุล',
+  'เพศ',
+  'อายุ',
+  'เบอร์ติดต่อ',
+  'Email',
+  'แผนก/ฝ่าย',
+  'ตำแหน่ง/วิชาชีพ',
+  'ประเภทการจ้างงาน',
+  'วันที่เริ่มงาน',
+  'สถานที่ปฏิบัติงาน/อาคาร',
+  'สถานะการทำงาน (Status)',
+  'วันที่ลาออก/พ้นสภาพ',
+  'เหตุผลการพ้นสภาพ',
+  'หมายเหตุการลาออก',
+  'ระดับความเสี่ยง TB',
+  'ประวัติสัมผัสผู้ป่วย TB ในงาน',
+  'รายละเอียดการสัมผัส',
+  'ประวัติเคยป่วยเป็น TB',
+  'คัดกรองอาการสงสัย (Symptoms)',
+  'การตรวจการติดเชื้อแฝง (IGRA/TST)',
+  'ผลตรวจการติดเชื้อแฝง',
+  'สถานะการรับยาป้องกัน (TPT)',
+  'สูตรยาป้องกัน TPT',
+  'จำนวนครั้งตรวจ CXR ทั้งหมด',
+  'ประวัติการตรวจ CXR ทั้งหมด (JSON)',
+  'วันที่ตรวจ CXR ล่าสุด',
+  'ผล CXR ล่าสุด',
+  'รายละเอียดผลอ่านฟิล์มล่าสุด',
+  'วันนัดตรวจ CXR รอบถัดไป',
+  'หมายเหตุเพิ่มเติม',
+  'วันที่บันทึก (Created At)',
+  'วันที่แก้ไขล่าสุด (Updated At)',
+  'แก้ไขล่าสุดโดย (Last Updated By)'
+];
+
+export const PATIENT_HEADERS = [
+  'รหัสผู้ป่วย (ID)',
+  'HN',
+  'ชื่อ-นามสกุล',
+  'เบอร์ติดต่อ',
+  'Email',
+  'วันขึ้นทะเบียนใน n-tip',
+  'วันที่เริ่มวินิจฉัย/รักษา',
+  'อายุ',
+  'เพศ',
+  'เลขประจำตัวประชาชน',
+  'สิทธิการรักษา',
+  'ที่อยู่',
+  'ผู้ติดต่อฉุกเฉิน (ชื่อ-เบอร์)',
+  'กลุ่มการรักษา (Category)',
+  'การจำแนกโรค (Classification)',
+  'น้ำหนัก (กก.)',
+  'สูตรยาที่ได้รับ (Regimen)',
+  'แพทย์ผู้ดูแล',
+  'โรงพยาบาล/สถานพยาบาล',
+  'จำนวนผู้สัมผัสร่วมบ้าน',
+  'จำนวนผู้สัมผัสนอกบ้าน',
+  'สถานะการสอบสวนโรค',
+  'สถานะการรักษา',
+  'หมายเหตุเพิ่มเติม',
+  'วันที่สร้างข้อมูล',
+  'แก้ไขล่าสุดโดย (Last Updated By)',
+  'วันที่แก้ไขล่าสุด (Updated At)'
+];
+
+export const INVESTIGATION_HEADERS = [
+  'รหัสการสอบสวน (ID)',
+  'รหัสผู้ป่วย (Patient ID)',
+  'HN ผู้ป่วย',
+  'ชื่อ-สกุล ผู้ป่วย',
+  'วันที่สอบสวนโรค',
+  'ผู้ทำการสอบสวนโรค',
+  'ตำแหน่ง/หน่วยงาน',
+  'อาชีพ/สถานที่ทำงาน',
+  'วันที่เริ่มมีอาการ',
+  'ช่วงเวลาแพร่เชื้อเริ่มต้น',
+  'ช่วงเวลาแพร่เชื้อสิ้นสุด',
+  'การจำแนกประเภทวัณโรค',
+  'ผลตรวจเสมหะ (AFB Smear)',
+  'วันที่ตรวจ AFB',
+  'ผลตรวจโมเลกุล (GeneXpert)',
+  'วันที่ตรวจ GeneXpert',
+  'ผลการเพาะเชื้อ (Culture MTB)',
+  'ผล CXR แรกรับ',
+  'วันที่ CXR แรกรับ',
+  'ไอเรื้อรัง (สัปดาห์)',
+  'ไอเป็นเลือด',
+  'มีไข้',
+  'เหงื่อออกกลางคืน',
+  'น้ำหนักลด',
+  'เจ็บหน้าอก',
+  'อ่อนเพลีย',
+  'ผลตรวจ HIV',
+  'เบาหวาน',
+  'โรคไตเรื้อรัง',
+  'สูบบุหรี่',
+  'ดื่มแอลกอฮอล์',
+  'ประวัติสารเสพติด',
+  'ประวัติเคยรักษาวัณโรค',
+  'ลักษณะที่อยู่อาศัย',
+  'การระบายอากาศ',
+  'จำนวนผู้อาศัยรวม (คน)',
+  'จำนวนผู้สัมผัสร่วมบ้านที่ระบุ',
+  'จำนวนเด็กอายุ <= 5 ปี (ร่วมบ้าน)',
+  'จำนวนผู้สัมผัสนอกบ้านที่ระบุ',
+  'การประเมินความเสี่ยง',
+  'มาตรการควบคุมโรค',
+  'แพทย์/ผู้บังคับบัญชาผู้ตรวจรับรอง',
+  'วันที่บันทึก'
+];
+
+export const CONTACT_HEADERS = [
+  'รหัสผู้สัมผัส (ID)',
+  'รหัสผู้ป่วยดัชนี (Index ID)',
+  'HN ผู้ป่วยดัชนี',
+  'ชื่อผู้ป่วยดัชนี',
+  'กลุ่มผู้สัมผัส (ร่วมบ้าน/นอกบ้าน)',
+  'ความสัมพันธ์กับผู้ป่วย',
+  'HN ผู้สัมผัส',
+  'ชื่อ-นามสกุล ผู้สัมผัส',
+  'เพศ',
+  'อายุ (ปี)',
+  'สิทธิการรักษา',
+  'เบอร์ติดต่อ',
+  'Email',
+  'เกณฑ์การติดตาม (Protocol)',
+  'สถานะการคีย์ n-tip',
+  'รหัสที่คีย์ใน n-tip (NTIP Code)',
+  'วันที่คีย์ใน n-tip',
+  'สถานะการตรวจคัดกรอง',
+  'หมายเหตุ',
+  'วันที่สร้างข้อมูล',
+  'แก้ไขล่าสุดโดย (Last Updated By)',
+  'วันที่แก้ไขล่าสุด (Updated At)',
+  'หมายเหตุการคีย์ n-tip (NTIP Notes)',
+  'สถานะการตรวจ CXR',
+  'ครั้งที่ตรวจ CXR',
+  'วันที่ตรวจ CXR',
+  'ผลตรวจเอกซเรย์ปอด (CXR Result)',
+  'รายละเอียดผลตรวจ CXR',
+  'สถานพยาบาลที่ตรวจ CXR',
+  'วันนัดตรวจ CXR ครั้งถัดไป',
+  'รหัส NTIP ครั้งที่ 1 (0M)',
+  'รหัส NTIP ครั้งที่ 2 (6M)',
+  'รหัส NTIP ครั้งที่ 3 (12M)',
+  'รหัส NTIP ครั้งที่ 4 (18M)'
+];
+
+export const FOLLOW_UP_HEADERS = [
+  'รหัสติดตาม (ID)',
+  'รหัสผู้สัมผัส (Contact ID)',
+  'HN ผู้ป่วยดัชนี',
+  'HN ผู้สัมผัส',
+  'ชื่อผู้สัมผัส',
+  'อายุผู้สัมผัส',
+  'ขั้นตอนการตรวจ/ติดตาม',
+  'วันที่นัดตรวจ',
+  'วันที่ตรวจจริง',
+  'สถานะการติดตาม',
+  'ผลการตรวจ',
+  'รายละเอียดผลตรวจ',
+  'สูตรยาป้องกัน (TPT)',
+  'สถานพยาบาลที่ตรวจ',
+  'ผู้บันทึกข้อมูล',
+  'หมายเหตุ',
+  'รหัส NTIP ครั้งที่ 1',
+  'รหัส NTIP ครั้งที่ 2',
+  'รหัส NTIP ครั้งที่ 3',
+  'รหัส NTIP ครั้งที่ 4'
+];
+
+export const DAILY_LOG_HEADERS = [
+  'รหัสบันทึก (Log ID)',
+  'รหัสผู้ป่วย (Patient ID)',
+  'วันที่บันทึก (Date)',
+  'ทานยาแล้วหรือไม่ (Taken)',
+  'เวลาที่ทานยา (Time)',
+  'ผู้กำกับการทานยา (DOTS Supervisor)',
+  'ชื่อผู้กำกับยา',
+  'อาการไอปกติ',
+  'ไอเป็นเลือด (Hemoptysis)',
+  'มีไข้ (Fever)',
+  'เหงื่อออกตอนกลางคืน',
+  'น้ำหนักลด',
+  'เจ็บหน้าอก',
+  'อ่อนเพลีย/เหนื่อยง่าย',
+  'คลื่นไส้/อาเจียน',
+  'ผื่นคันตามผิวหนัง',
+  'ตาเหลือง/ตัวเหลือง (Jaundice)',
+  'ปวดข้อ/กล้ามเนื้อ',
+  'ตามัว/การมองเห็นผิดปกติ',
+  'ชาปลายมือปลายเท้า',
+  'ระดับความรุนแรง (Severity)',
+  'อาการข้างเคียง/บันทึกเพิ่มเติม',
+  'สภาวะอารมณ์',
+  'ผู้บันทึกข้อมูล',
+  'เวลาที่บันทึกระบบ'
+];
+
+export async function createTBSheet(accessToken: string, customTitle?: string): Promise<{ spreadsheetId: string; spreadsheetUrl: string; title: string }> {
+  const title = customTitle || `ระบบสอบสวนและติดตามกลุ่มเสี่ยงวัณโรคปอด โรงพยาบาลมหาวิทยาลัยอุบลราชธานี - ${new Date().toLocaleDateString('th-TH')}`;
+  
+  const createResponse = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      properties: {
+        title: title,
+      },
+      sheets: [
+        {
+          properties: {
+            title: PATIENTS_SHEET_NAME,
+            gridProperties: { frozenRowCount: 1 },
+            tabColor: { red: 0.1, green: 0.5, blue: 0.9 },
+          },
+        },
+        {
+          properties: {
+            title: INVESTIGATION_SHEET_NAME,
+            gridProperties: { frozenRowCount: 1 },
+            tabColor: { red: 0.9, green: 0.4, blue: 0.1 },
+          },
+        },
+        {
+          properties: {
+            title: CONTACTS_SHEET_NAME,
+            gridProperties: { frozenRowCount: 1 },
+            tabColor: { red: 0.6, green: 0.2, blue: 0.8 },
+          },
+        },
+        {
+          properties: {
+            title: FOLLOW_UPS_SHEET_NAME,
+            gridProperties: { frozenRowCount: 1 },
+            tabColor: { red: 0.2, green: 0.7, blue: 0.6 },
+          },
+        },
+        {
+          properties: {
+            title: DAILY_LOGS_SHEET_NAME,
+            gridProperties: { frozenRowCount: 1 },
+            tabColor: { red: 0.1, green: 0.7, blue: 0.3 },
+          },
+        },
+        {
+          properties: {
+            title: HEALTHCARE_WORKERS_SHEET_NAME,
+            gridProperties: { frozenRowCount: 1 },
+            tabColor: { red: 0.1, green: 0.6, blue: 0.6 },
+          },
+        },
+      ],
+    }),
+  });
+
+  if (!createResponse.ok) {
+    const errorData = await createResponse.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || 'Failed to create Google Spreadsheet');
+  }
+
+  const data = await createResponse.json();
+  const spreadsheetId = data.spreadsheetId;
+  const spreadsheetUrl = data.spreadsheetUrl;
+
+  // Insert initial headers for all sheets
+  await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      valueInputOption: 'USER_ENTERED',
+      data: [
+        {
+          range: `'${PATIENTS_SHEET_NAME}'!A1:Y1`,
+          values: [PATIENT_HEADERS],
+        },
+        {
+          range: `'${INVESTIGATION_SHEET_NAME}'!A1:AQ1`,
+          values: [INVESTIGATION_HEADERS],
+        },
+        {
+          range: `'${CONTACTS_SHEET_NAME}'!A1:AD1`,
+          values: [CONTACT_HEADERS],
+        },
+        {
+          range: `'${FOLLOW_UPS_SHEET_NAME}'!A1:P1`,
+          values: [FOLLOW_UP_HEADERS],
+        },
+        {
+          range: `'${DAILY_LOGS_SHEET_NAME}'!A1:Y1`,
+          values: [DAILY_LOG_HEADERS],
+        },
+        {
+          range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A1:AJ1`,
+          values: [HCW_HEADERS],
+        },
+      ],
+    }),
+  });
+
+  return { spreadsheetId, spreadsheetUrl, title };
+}
+
+export async function findOrCreateTBSheet(
+  accessToken: string
+): Promise<{ spreadsheetId: string; spreadsheetUrl: string; title: string; isNew: boolean }> {
+  try {
+    const q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false and (name contains 'ระบบสอบสวนและติดตามกลุ่มเสี่ยงวัณโรคปอด' or name contains 'TB Patient Care Tracker Database')");
+    const driveRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)&orderBy=modifiedTime desc&pageSize=1`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (driveRes.ok) {
+      const driveData = await driveRes.json();
+      if (driveData.files && driveData.files.length > 0) {
+        const found = driveData.files[0];
+        const spreadsheetId = found.id;
+        const spreadsheetUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+        await verifyAndInitSheets(accessToken, spreadsheetId);
+        return { spreadsheetId, spreadsheetUrl, title: found.name, isNew: false };
+      }
+    }
+  } catch (err) {
+    console.warn('Drive search fallback:', err);
+  }
+
+  const created = await createTBSheet(accessToken, 'ระบบสอบสวนและติดตามกลุ่มเสี่ยงวัณโรคปอด โรงพยาบาลมหาวิทยาลัยอุบลราชธานี');
+  return { ...created, isNew: true };
+}
+
+export async function verifyAndInitSheets(accessToken: string, spreadsheetId: string): Promise<boolean> {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw new Error('ไม่สามารถเข้าถึง Google Sheet นี้ได้ กรุณาตรวจสอบสิทธิ์หรือ ID');
+  }
+
+  const meta = await res.json();
+  const existingSheets: string[] = (meta.sheets || []).map((s: any) => s.properties?.title);
+
+  const missingSheets: { title: string; color: any; headers: string[]; range: string }[] = [];
+  
+  if (!existingSheets.includes(PATIENTS_SHEET_NAME)) {
+    missingSheets.push({
+      title: PATIENTS_SHEET_NAME,
+      color: { red: 0.1, green: 0.5, blue: 0.9 },
+      headers: PATIENT_HEADERS,
+      range: `'${PATIENTS_SHEET_NAME}'!A1:AA1`,
+    });
+  }
+  if (!existingSheets.includes(INVESTIGATION_SHEET_NAME)) {
+    missingSheets.push({
+      title: INVESTIGATION_SHEET_NAME,
+      color: { red: 0.9, green: 0.4, blue: 0.1 },
+      headers: INVESTIGATION_HEADERS,
+      range: `'${INVESTIGATION_SHEET_NAME}'!A1:AQ1`,
+    });
+  }
+  if (!existingSheets.includes(CONTACTS_SHEET_NAME)) {
+    missingSheets.push({
+      title: CONTACTS_SHEET_NAME,
+      color: { red: 0.6, green: 0.2, blue: 0.8 },
+      headers: CONTACT_HEADERS,
+      range: `'${CONTACTS_SHEET_NAME}'!A1:AD1`,
+    });
+  }
+  if (!existingSheets.includes(FOLLOW_UPS_SHEET_NAME)) {
+    missingSheets.push({
+      title: FOLLOW_UPS_SHEET_NAME,
+      color: { red: 0.2, green: 0.7, blue: 0.6 },
+      headers: FOLLOW_UP_HEADERS,
+      range: `'${FOLLOW_UPS_SHEET_NAME}'!A1:P1`,
+    });
+  }
+  if (!existingSheets.includes(DAILY_LOGS_SHEET_NAME)) {
+    missingSheets.push({
+      title: DAILY_LOGS_SHEET_NAME,
+      color: { red: 0.1, green: 0.7, blue: 0.3 },
+      headers: DAILY_LOG_HEADERS,
+      range: `'${DAILY_LOGS_SHEET_NAME}'!A1:Y1`,
+    });
+  }
+  if (!existingSheets.includes(HEALTHCARE_WORKERS_SHEET_NAME)) {
+    missingSheets.push({
+      title: HEALTHCARE_WORKERS_SHEET_NAME,
+      color: { red: 0.1, green: 0.6, blue: 0.6 },
+      headers: HCW_HEADERS,
+      range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A1:AJ1`,
+    });
+  }
+
+  if (missingSheets.length > 0) {
+    const requests = missingSheets.map(s => ({
+      addSheet: {
+        properties: {
+          title: s.title,
+          gridProperties: { frozenRowCount: 1 },
+          tabColor: s.color,
+        },
+      },
+    }));
+
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ requests }),
+    });
+
+    const valueUpdates = missingSheets.map(s => ({
+      range: s.range,
+      values: [s.headers],
+    }));
+
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        valueInputOption: 'USER_ENTERED',
+        data: valueUpdates,
+      }),
+    });
+  }
+
+  return true;
+}
+
+// Helper to wrap API calls with auto-initialize on missing sheet tab
+async function executeSheetWriteWithAutoInit(
+  accessToken: string,
+  spreadsheetId: string,
+  fn: () => Promise<Response>
+): Promise<Response> {
+  let res = await fn();
+  if (!res.ok) {
+    const errData = await res.clone().json().catch(() => ({}));
+    const errMsg = errData.error?.message || '';
+    if (errMsg.includes('Unable to parse range') || errMsg.includes('not found') || res.status === 400) {
+      try {
+        await verifyAndInitSheets(accessToken, spreadsheetId);
+        res = await fn();
+      } catch (retryErr) {
+        console.error('Auto-init retry failed:', retryErr);
+      }
+    }
+  }
+  return res;
+}
+
+// ------------------- PATIENT OPERATIONS -------------------
+
+export async function fetchAllPatients(accessToken: string, spreadsheetId: string): Promise<Patient[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, 'A2:AA5000')}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    return [];
+  }
+
+  const data = await res.json();
+  const rows = data.values || [];
+
+  const rawList = rows.map((row: string[], idx: number): Patient | null => {
+    const rawHn = (row[1] || '').trim();
+    const rawName = (row[2] || '').trim();
+
+    // Skip empty or header rows
+    if (!rawHn && !rawName) return null;
+    if (rawName === 'ชื่อ-นามสกุล' || rawHn === 'HN') return null;
+
+    const rawId = (row[0] || '').trim();
+    const patientId = rawId || (rawHn ? `TB-${rawHn}` : `TB-${Date.now()}-${idx}`);
+
+    const emergencyRaw = row[12] || '';
+    const [emName, emPhone] = emergencyRaw.split(' - ');
+
+    return {
+      id: patientId,
+      hn: rawHn,
+      fullName: rawName,
+      phone: (row[3] || '').trim(),
+      email: (row[4] || '').trim(),
+      ntipRegistrationDate: row[5] || '',
+      diagnosisDate: row[6] || '',
+      age: Number(row[7]) || 0,
+      gender: (row[8] === 'หญิง' || row[8] === 'female' ? 'female' : row[8] === 'อื่นๆ' ? 'other' : 'male'),
+      nationalId: (row[9] || '').trim(),
+      treatmentRights: row[10] || 'บัตรทอง (UC)',
+      address: row[11] || '',
+      emergencyContact: {
+        name: emName || emergencyRaw,
+        relationship: 'ผู้ติดต่อฉุกเฉิน',
+        phone: emPhone || '',
+      },
+      treatmentCategory: (row[13] as any) || 'Cat 1 (New)',
+      tbClassification: (row[14] as any) || 'Pulmonary (Bacteriologically Confirmed)',
+      weightKg: Number(row[15]) || 0,
+      treatmentRegimen: row[16] || '2HRZE/4HR',
+      doctorName: row[17] || '',
+      hospitalName: row[18] || '',
+      householdContactsCount: Number(row[19]) || 0,
+      nonHouseholdContactsCount: Number(row[20]) || 0,
+      investigationStatus: (row[21] as any) || 'pending',
+      status: normalizePatientStatus(row[22]),
+      notes: row[23] || '',
+      createdAt: row[24] || new Date().toISOString(),
+      lastUpdatedBy: row[25] || '',
+      updatedAt: row[26] || row[24] || '',
+    };
+  }).filter((p): p is Patient => p !== null && (!!p.fullName || !!p.hn));
+
+  // Deduplicate array by HN or ID (keep latest or most complete)
+  const mapByHnOrId = new Map<string, Patient>();
+  for (const p of rawList) {
+    const key = p.hn ? `hn:${p.hn.toLowerCase()}` : `id:${p.id}`;
+    mapByHnOrId.set(key, p);
+  }
+
+  return Array.from(mapByHnOrId.values());
+}
+
+export async function appendPatientToSheet(accessToken: string, spreadsheetId: string, patient: Patient): Promise<void> {
+  // Check if patient already exists in sheet by ID or HN or National ID
+  const checkUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, 'A:J')}`;
+  const checkRes = await fetch(checkUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+  
+  if (checkRes.ok) {
+    const checkData = await checkRes.json();
+    const rows: string[][] = checkData.values || [];
+    const patientHnClean = (patient.hn || '').trim().toLowerCase();
+    const patientNatClean = (patient.nationalId || '').trim();
+
+    const existingRowIndex = rows.findIndex((r, idx) => {
+      if (idx === 0) return false;
+      const rowId = (r[0] || '').trim();
+      const rowHn = (r[1] || '').trim().toLowerCase();
+      const rowNat = (r[9] || '').trim();
+      return (
+        (patient.id && rowId === patient.id) ||
+        (patientHnClean && rowHn === patientHnClean) ||
+        (patientNatClean && patientNatClean.length === 13 && rowNat === patientNatClean)
+      );
+    });
+
+    if (existingRowIndex !== -1) {
+      // Patient already exists in sheet! Update that row instead of creating duplicate
+      return updatePatientInSheet(accessToken, spreadsheetId, patient);
+    }
+  }
+
+  const genderMap: Record<string, string> = { male: 'ชาย', female: 'หญิง', other: 'อื่นๆ' };
+  const values = [
+    [
+      patient.id,
+      patient.hn,
+      patient.fullName,
+      patient.phone,
+      patient.email,
+      patient.ntipRegistrationDate,
+      patient.diagnosisDate,
+      patient.age,
+      genderMap[patient.gender] || patient.gender,
+      patient.nationalId || '',
+      patient.treatmentRights || '',
+      patient.address,
+      `${patient.emergencyContact?.name || ''} - ${patient.emergencyContact?.phone || ''}`,
+      patient.treatmentCategory,
+      patient.tbClassification,
+      patient.weightKg,
+      patient.treatmentRegimen,
+      patient.doctorName,
+      patient.hospitalName,
+      patient.householdContactsCount || 0,
+      patient.nonHouseholdContactsCount || 0,
+      patient.investigationStatus || 'pending',
+      patient.status,
+      patient.notes || '',
+      patient.createdAt || new Date().toISOString(),
+      patient.lastUpdatedBy || '',
+      patient.updatedAt || new Date().toISOString(),
+    ],
+  ];
+
+  const doAppend = () => fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, 'A1')}:append?valueInputOption=USER_ENTERED`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values }),
+    }
+  );
+
+  const res = await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doAppend);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'ไม่สามารถบันทึกข้อมูลผู้ป่วยลงใน Google Sheet ได้');
+  }
+}
+
+export const savePatientToSheet = appendPatientToSheet;
+
+export async function updatePatientInSheet(accessToken: string, spreadsheetId: string, patient: Patient): Promise<void> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, 'A:J')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    await verifyAndInitSheets(accessToken, spreadsheetId);
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+  if (!res.ok) throw new Error('ไม่สามารถค้นหาแถวข้อมูลผู้ป่วยได้');
+  
+  const data = await res.json();
+  const rows: string[][] = data.values || [];
+  const patientHnClean = (patient.hn || '').trim().toLowerCase();
+  const patientNatClean = (patient.nationalId || '').trim();
+
+  const rowIndex = rows.findIndex((r, idx) => {
+    if (idx === 0) return false;
+    const rowId = (r[0] || '').trim();
+    const rowHn = (r[1] || '').trim().toLowerCase();
+    const rowNat = (r[9] || '').trim();
+    return (
+      (patient.id && rowId === patient.id) ||
+      (patientHnClean && rowHn === patientHnClean) ||
+      (patientNatClean && patientNatClean.length === 13 && rowNat === patientNatClean)
+    );
+  });
+
+  if (rowIndex === -1) {
+    return appendPatientToSheet(accessToken, spreadsheetId, patient);
+  }
+
+  const sheetRowNum = rowIndex + 1;
+  const genderMap: Record<string, string> = { male: 'ชาย', female: 'หญิง', other: 'อื่นๆ' };
+  const values = [
+    [
+      patient.id,
+      patient.hn,
+      patient.fullName,
+      patient.phone,
+      patient.email,
+      patient.ntipRegistrationDate,
+      patient.diagnosisDate,
+      patient.age,
+      genderMap[patient.gender] || patient.gender,
+      patient.nationalId || '',
+      patient.treatmentRights || '',
+      patient.address,
+      `${patient.emergencyContact?.name || ''} - ${patient.emergencyContact?.phone || ''}`,
+      patient.treatmentCategory,
+      patient.tbClassification,
+      patient.weightKg,
+      patient.treatmentRegimen,
+      patient.doctorName,
+      patient.hospitalName,
+      patient.householdContactsCount || 0,
+      patient.nonHouseholdContactsCount || 0,
+      patient.investigationStatus || 'pending',
+      patient.status,
+      patient.notes || '',
+      patient.createdAt || new Date().toISOString(),
+      patient.lastUpdatedBy || '',
+      patient.updatedAt || new Date().toISOString(),
+    ],
+  ];
+
+  const doUpdate = () => fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, `A${sheetRowNum}:AA${sheetRowNum}`)}?valueInputOption=USER_ENTERED`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values }),
+    }
+  );
+
+  const updateRes = await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doUpdate);
+
+  if (!updateRes.ok) {
+    const err = await updateRes.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'ไม่สามารถอัปเดตข้อมูลผู้ป่วยใน Google Sheet ได้');
+  }
+}
+
+// ------------------- INVESTIGATION OPERATIONS -------------------
+
+export async function fetchAllInvestigations(accessToken: string, spreadsheetId: string): Promise<InvestigationForm[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(INVESTIGATION_SHEET_NAME, 'A2:AQ5000')}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const rows = data.values || [];
+
+  return rows.map((row: string[]): InvestigationForm => {
+    return {
+      id: row[0] || '',
+      patientId: row[1] || '',
+      patientHN: row[2] || '',
+      patientName: row[3] || '',
+      investigationDate: row[4] || '',
+      investigatorName: row[5] || '',
+      investigatorPosition: row[6] || '',
+      occupation: row[7] || '',
+      symptomOnsetDate: row[8] || '',
+      infectiousPeriodStart: row[9] || '',
+      infectiousPeriodEnd: row[10] || '',
+      tbClassification: (row[11] as any) || 'Pulmonary',
+      afbSmearResult: row[12] || '',
+      afbSmearDate: row[13] || '',
+      geneXpertResult: row[14] || '',
+      geneXpertDate: row[15] || '',
+      cultureResult: row[16] || '',
+      initialCxrResult: row[17] || '',
+      initialCxrDate: row[18] || '',
+      symptoms: {
+        chronicCough: row[19] ? Number(row[19]) > 0 : false,
+        coughDurationWeeks: Number(row[19]) || 0,
+        coughBlood: row[20] === 'มี' || row[20] === 'TRUE',
+        fever: row[21] === 'มี' || row[21] === 'TRUE',
+        nightSweats: row[22] === 'มี' || row[22] === 'TRUE',
+        weightLoss: row[23] === 'มี' || row[23] === 'TRUE',
+        chestPain: row[24] === 'มี' || row[24] === 'TRUE',
+        fatigue: row[25] === 'มี' || row[25] === 'TRUE',
+      },
+      comorbidities: {
+        hiv: (row[26] === 'ผลบวก (+)' ? 'positive' : row[26] === 'ผลลบ (-)' ? 'negative' : 'unknown') as any,
+        diabetes: row[27] === 'มี' || row[27] === 'TRUE',
+        ckd: row[28] === 'มี' || row[28] === 'TRUE',
+        smoking: row[29] === 'สูบ' || row[29] === 'TRUE',
+        alcohol: row[30] === 'ดื่ม' || row[30] === 'TRUE',
+        substanceAbuse: row[31] === 'มี' || row[31] === 'TRUE',
+        previousTbHistory: (row[32] === 'เคย' || row[32] === 'yes_cured' ? 'yes_cured' : 'no') as any,
+      },
+      livingConditions: {
+        homeType: (row[33] || 'บ้านเดี่ยว') as any,
+        ventilation: (row[34] || 'ดี (โปร่ง ถ่ายเทดี)') as any,
+        totalRooms: 1,
+        totalResidents: Number(row[35]) || 1,
+      },
+      householdContactsCount: Number(row[36]) || 0,
+      under5ContactsCount: Number(row[37]) || 0,
+      nonHouseholdContactsCount: Number(row[38]) || 0,
+      riskAssessmentNotes: row[39] || '',
+      controlMeasures: row[40] || '',
+      supervisorReviewerName: row[41] || '',
+      recordedAt: row[42] || '',
+    };
+  }).filter(inv => inv.id && inv.patientId);
+}
+
+export async function saveInvestigationToSheet(accessToken: string, spreadsheetId: string, inv: InvestigationForm): Promise<void> {
+  const hivLabel = inv.comorbidities.hiv === 'positive' ? 'ผลบวก (+)' : inv.comorbidities.hiv === 'negative' ? 'ผลลบ (-)' : 'ไม่ระบุ/ไม่ได้ตรวจ';
+  const prevTbLabel = inv.comorbidities.previousTbHistory && inv.comorbidities.previousTbHistory !== 'no' ? 'เคย' : 'ไม่เคย';
+  const values = [
+    [
+      inv.id,
+      inv.patientId,
+      inv.patientHN,
+      inv.patientName,
+      inv.investigationDate,
+      inv.investigatorName,
+      inv.investigatorPosition || '',
+      inv.occupation || '',
+      inv.symptomOnsetDate || '',
+      inv.infectiousPeriodStart || '',
+      inv.infectiousPeriodEnd || '',
+      inv.tbClassification || '',
+      inv.afbSmearResult,
+      inv.afbSmearDate || '',
+      inv.geneXpertResult,
+      inv.geneXpertDate || '',
+      inv.cultureResult || '',
+      inv.initialCxrResult,
+      inv.initialCxrDate || '',
+      inv.symptoms.chronicCough ? inv.symptoms.coughDurationWeeks : 0,
+      inv.symptoms.coughBlood ? 'มี' : 'ไม่มี',
+      inv.symptoms.fever ? 'มี' : 'ไม่มี',
+      inv.symptoms.nightSweats ? 'มี' : 'ไม่มี',
+      inv.symptoms.weightLoss ? 'มี' : 'ไม่มี',
+      inv.symptoms.chestPain ? 'มี' : 'ไม่มี',
+      inv.symptoms.fatigue ? 'มี' : 'ไม่มี',
+      hivLabel,
+      inv.comorbidities.diabetes ? 'มี' : 'ไม่มี',
+      inv.comorbidities.ckd ? 'มี' : 'ไม่มี',
+      inv.comorbidities.smoking ? 'สูบ' : 'ไม่สูบ',
+      inv.comorbidities.alcohol ? 'ดื่ม' : 'ไม่ดื่ม',
+      inv.comorbidities.substanceAbuse ? 'มี' : 'ไม่มี',
+      prevTbLabel,
+      inv.livingConditions.homeType,
+      inv.livingConditions.ventilation,
+      inv.livingConditions.totalResidents,
+      inv.householdContactsCount,
+      inv.under5ContactsCount || 0,
+      inv.nonHouseholdContactsCount,
+      inv.riskAssessmentNotes || '',
+      inv.controlMeasures || '',
+      inv.supervisorReviewerName || '',
+      inv.recordedAt || new Date().toISOString(),
+    ],
+  ];
+
+  // Check if exists
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(INVESTIGATION_SHEET_NAME, 'A:A')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    await verifyAndInitSheets(accessToken, spreadsheetId);
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const rows = data.values || [];
+  const rowIndex = rows.findIndex((r: string[]) => r[0] === inv.id || (r[1] === inv.patientId));
+
+  if (rowIndex === -1) {
+    // Append
+    const doAppend = () => fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(INVESTIGATION_SHEET_NAME, 'A1')}:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+    await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doAppend);
+  } else {
+    // Update
+    const sheetRowNum = rowIndex + 1;
+    const doUpdate = () => fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(INVESTIGATION_SHEET_NAME, `A${sheetRowNum}:AQ${sheetRowNum}`)}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+    await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doUpdate);
+  }
+}
+
+// ------------------- CONTACT PERSONS OPERATIONS -------------------
+
+export async function fetchAllContacts(accessToken: string, spreadsheetId: string): Promise<ContactPerson[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(CONTACTS_SHEET_NAME, 'A2:AD5000')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    try {
+      await verifyAndInitSheets(accessToken, spreadsheetId);
+      res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    } catch (e) {
+      console.warn('Contacts auto-init retry fallback:', e);
+    }
+    if (!res.ok) return [];
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const rows: string[][] = data.values || [];
+
+  const rawList = rows.map((row: string[], idx: number): ContactPerson | null => {
+    if (!row || row.length === 0 || row.every(cell => !cell || !cell.trim())) {
+      return null;
+    }
+
+    const rawId = (row[0] || '').trim();
+    const rawIndexId = (row[1] || '').trim();
+    const rawIndexHn = (row[2] || '').trim();
+    const rawIndexName = (row[3] || '').trim();
+    const rawType = (row[4] || '').trim();
+    const rawRelationship = (row[5] || '').trim();
+    const rawHn = (row[6] || '').trim();
+    const rawFullName = (row[7] || '').trim();
+
+    // Skip if header row
+    if (
+      rawFullName === 'ชื่อ-นามสกุล ผู้สัมผัส' ||
+      rawId.includes('รหัสผู้สัมผัส') ||
+      rawHn === 'HN ผู้สัมผัส' ||
+      rawIndexHn === 'HN ผู้ป่วยดัชนี'
+    ) {
+      return null;
+    }
+
+    // Determine fallback name & ID
+    const fullName = rawFullName || (rawHn && !/^\d+$/.test(rawHn) ? rawHn : '') || rawIndexName || rawId;
+    if (!fullName && !rawHn && !rawId) {
+      return null;
+    }
+
+    const contactId = rawId || (rawHn ? `CT-${rawHn}` : `CT-${Date.now()}-${idx + 1}`);
+    const age = Number(row[9]) || 0;
+    const protocol: 'cxr_4_times' | 'igra_tpt' = age > 5 ? 'cxr_4_times' : 'igra_tpt';
+    const cType: 'household' | 'non_household' = (rawType.includes('นอกบ้าน') || rawType === 'non_household') ? 'non_household' : 'household';
+
+    return {
+      id: contactId,
+      indexPatientId: rawIndexId,
+      indexPatientHN: rawIndexHn,
+      indexPatientName: rawIndexName,
+      contactType: cType,
+      relationship: rawRelationship || (cType === 'household' ? 'คนในครอบครัว' : 'เพื่อนร่วมงาน/คนรู้จัก'),
+      hn: rawHn || (rawId.startsWith('HN') ? rawId : ''),
+      fullName: fullName || 'ผู้สัมผัส (ไม่ระบุชื่อ)',
+      gender: (row[8] === 'หญิง' || row[8] === 'female' ? 'female' : row[8] === 'อื่นๆ' ? 'other' : 'male'),
+      age: age,
+      treatmentRights: row[10] || 'บัตรทอง (UC)',
+      phone: row[11] || '',
+      email: row[12] || '',
+      protocolType: protocol,
+      ntipStatus: row[14] === 'คีย์แล้ว' || row[14] === 'entered' ? 'entered' : 'not_entered',
+      ntipKeyCode: row[15] || '',
+      ntipKeyDate: row[16] || '',
+      screeningStatus: (row[17] as any) || 'pending_screening',
+      notes: row[18] || '',
+      createdAt: row[19] || new Date().toISOString(),
+      lastUpdatedBy: row[20] || '',
+      updatedAt: row[21] || row[19] || new Date().toISOString(),
+      ntipNotes: row[22] || '',
+      cxrStatus: (row[23] as any) || undefined,
+      cxrRound: (row[24] as any) || undefined,
+      cxrDate: row[25] || '',
+      cxrResult: (row[26] as any) || undefined,
+      cxrResultDetail: row[27] || '',
+      cxrHospital: row[28] || '',
+      nextCxrDate: row[29] || '',
+      ntipCodeRound1: row[30] || '',
+      ntipCodeRound2: row[31] || '',
+      ntipCodeRound3: row[32] || '',
+      ntipCodeRound4: row[33] || '',
+    };
+  }).filter((c): c is ContactPerson => c !== null);
+
+  // Deduplicate by ID or (HN + IndexPatientHN)
+  const map = new Map<string, ContactPerson>();
+  for (const c of rawList) {
+    const key = c.hn ? `hn:${c.hn.toLowerCase()}-${(c.indexPatientHN || '').toLowerCase()}` : `id:${c.id}`;
+    map.set(key, c);
+  }
+
+  return Array.from(map.values());
+}
+
+export async function saveContactToSheet(accessToken: string, spreadsheetId: string, contact: ContactPerson): Promise<void> {
+  const genderLabel = contact.gender === 'female' ? 'หญิง' : contact.gender === 'other' ? 'อื่นๆ' : 'ชาย';
+  const typeLabel = contact.contactType === 'household' ? 'กลุ่มร่วมบ้าน (Household)' : 'กลุ่มนอกบ้าน (Non-household)';
+  const protocolLabel = contact.age > 5 ? 'อายุ > 5 ปี: CXR 4 ครั้ง (0, 6, 12, 18 เดือน)' : 'อายุ ≤ 5 ปี: ตรวจ IGRA / ให้ยาป้องกัน TPT';
+  const ntipLabel = contact.ntipStatus === 'entered' ? 'คีย์แล้ว' : 'ยังไม่ได้คีย์';
+
+  const values = [
+    [
+      contact.id,
+      contact.indexPatientId,
+      contact.indexPatientHN,
+      contact.indexPatientName,
+      typeLabel,
+      contact.relationship,
+      contact.hn,
+      contact.fullName,
+      genderLabel,
+      contact.age,
+      contact.treatmentRights,
+      contact.phone,
+      contact.email,
+      protocolLabel,
+      ntipLabel,
+      contact.ntipKeyCode || '',
+      contact.ntipKeyDate || '',
+      contact.screeningStatus,
+      contact.notes || '',
+      contact.createdAt || new Date().toISOString(),
+      contact.lastUpdatedBy || '',
+      contact.updatedAt || new Date().toISOString(),
+      contact.ntipNotes || '',
+      contact.cxrStatus || '',
+      contact.cxrRound || '',
+      contact.cxrDate || '',
+      contact.cxrResult || '',
+      contact.cxrResultDetail || '',
+      contact.cxrHospital || '',
+      contact.nextCxrDate || '',
+      contact.ntipCodeRound1 || '',
+      contact.ntipCodeRound2 || '',
+      contact.ntipCodeRound3 || '',
+      contact.ntipCodeRound4 || '',
+    ],
+  ];
+
+  // Check if exists by ID, HN, or (FullName + IndexHN)
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(CONTACTS_SHEET_NAME, 'A:H')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    await verifyAndInitSheets(accessToken, spreadsheetId);
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const rows: string[][] = data.values || [];
+  const targetId = (contact.id || '').trim();
+  const targetHn = (contact.hn || '').trim().toLowerCase();
+  const targetName = (contact.fullName || '').trim().toLowerCase();
+  const targetIndexHn = (contact.indexPatientHN || '').trim().toLowerCase();
+
+  const rowIndex = rows.findIndex((r: string[], idx: number) => {
+    if (idx === 0) return false;
+    const rowId = (r[0] || '').trim();
+    const rowIndexHn = (r[2] || '').trim().toLowerCase();
+    const rowHn = (r[6] || '').trim().toLowerCase();
+    const rowName = (r[7] || '').trim().toLowerCase();
+
+    if (targetId && rowId === targetId) return true;
+    if (targetHn && rowHn === targetHn && (!targetIndexHn || rowIndexHn === targetIndexHn)) return true;
+    if (targetName && rowName === targetName && targetIndexHn && rowIndexHn === targetIndexHn) return true;
+    return false;
+  });
+
+  if (rowIndex === -1) {
+    const doAppend = () => fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(CONTACTS_SHEET_NAME, 'A1')}:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+    await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doAppend);
+  } else {
+    const sheetRowNum = rowIndex + 1;
+    const doUpdate = () => fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(CONTACTS_SHEET_NAME, `A${sheetRowNum}:AH${sheetRowNum}`)}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+    await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doUpdate);
+  }
+}
+
+// ------------------- FOLLOW-UP OPERATIONS -------------------
+
+export async function fetchAllFollowUps(accessToken: string, spreadsheetId: string): Promise<ContactFollowUp[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(FOLLOW_UPS_SHEET_NAME, 'A2:T5000')}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const rows = data.values || [];
+
+  return rows.map((row: string[]): ContactFollowUp => {
+    return {
+      id: row[0] || '',
+      contactId: row[1] || '',
+      indexPatientHN: row[2] || '',
+      contactHN: row[3] || '',
+      contactName: row[4] || '',
+      contactAge: Number(row[5]) || 0,
+      stepType: (row[6] as any) || 'cxr_1_0m',
+      scheduledDate: row[7] || '',
+      actualDate: row[8] || '',
+      status: (row[9] as any) || 'scheduled',
+      testResult: (row[10] as any) || 'pending',
+      resultDetail: row[11] || '',
+      tptRegimen: (row[12] as any) || 'none',
+      hospitalOrFacility: row[13] || '',
+      recordedBy: row[14] || '',
+      notes: row[15] || '',
+      ntipCodeRound1: row[16] || '',
+      ntipCodeRound2: row[17] || '',
+      ntipCodeRound3: row[18] || '',
+      ntipCodeRound4: row[19] || '',
+    };
+  }).filter(f => f.id && f.contactId);
+}
+
+export async function saveFollowUpToSheet(accessToken: string, spreadsheetId: string, fu: ContactFollowUp): Promise<void> {
+  const values = [
+    [
+      fu.id,
+      fu.contactId,
+      fu.indexPatientHN,
+      fu.contactHN,
+      fu.contactName,
+      fu.contactAge,
+      fu.stepType,
+      fu.scheduledDate,
+      fu.actualDate || '',
+      fu.status,
+      fu.testResult || 'pending',
+      fu.resultDetail || '',
+      fu.tptRegimen || 'none',
+      fu.hospitalOrFacility || '',
+      fu.recordedBy,
+      fu.notes || '',
+      fu.ntipCodeRound1 || '',
+      fu.ntipCodeRound2 || '',
+      fu.ntipCodeRound3 || '',
+      fu.ntipCodeRound4 || '',
+    ],
+  ];
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(FOLLOW_UPS_SHEET_NAME, 'A:A')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    await verifyAndInitSheets(accessToken, spreadsheetId);
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const rows = data.values || [];
+  const rowIndex = rows.findIndex((r: string[]) => r[0] === fu.id);
+
+  if (rowIndex === -1) {
+    const doAppend = () => fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(FOLLOW_UPS_SHEET_NAME, 'A1')}:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+    await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doAppend);
+  } else {
+    const sheetRowNum = rowIndex + 1;
+    const doUpdate = () => fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(FOLLOW_UPS_SHEET_NAME, `A${sheetRowNum}:T${sheetRowNum}`)}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values }),
+      }
+    );
+    await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doUpdate);
+  }
+}
+
+// ------------------- DAILY LOG OPERATIONS -------------------
+
+export async function fetchAllDailyLogs(accessToken: string, spreadsheetId: string): Promise<DailyLog[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(DAILY_LOGS_SHEET_NAME, 'A2:Y10000')}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const rows = data.values || [];
+
+  return rows.map((row: string[]): DailyLog => {
+    return {
+      id: row[0] || '',
+      patientId: row[1] || '',
+      date: row[2] || '',
+      takenMedication: row[3] === 'ทานแล้ว' || row[3] === 'TRUE' || row[3] === 'true' || row[3] === 'Yes',
+      medicationTime: row[4] || '',
+      supervisorType: (row[5] === 'อสม.' ? 'vhv' : row[5] === 'เจ้าหน้าที่สาธารณสุข' ? 'health_worker' : row[5] === 'ญาติ/ครอบครัว' ? 'family' : 'self'),
+      supervisorName: row[6] || '',
+      symptoms: {
+        cough: row[7] === 'มี' || row[7] === 'TRUE',
+        coughBlood: row[8] === 'มี' || row[8] === 'TRUE',
+        fever: row[9] === 'มี' || row[9] === 'TRUE',
+        nightSweats: row[10] === 'มี' || row[10] === 'TRUE',
+        weightLoss: row[11] === 'มี' || row[11] === 'TRUE',
+        chestPain: row[12] === 'มี' || row[12] === 'TRUE',
+        fatigue: row[13] === 'มี' || row[13] === 'TRUE',
+        nauseaVomiting: row[14] === 'มี' || row[14] === 'TRUE',
+        rashItch: row[15] === 'มี' || row[15] === 'TRUE',
+        yellowSkinEyes: row[16] === 'มี' || row[16] === 'TRUE',
+        jointPain: row[17] === 'มี' || row[17] === 'TRUE',
+        visionChanges: row[18] === 'มี' || row[18] === 'TRUE',
+        numbnessHandsFeet: row[19] === 'มี' || row[19] === 'TRUE',
+      },
+      severityLevel: (row[20] as any) || 'normal',
+      sideEffectsNotes: row[21] || '',
+      patientMood: (row[22] as any) || 'neutral',
+      recordedBy: row[23] || '',
+      recordedAt: row[24] || '',
+    };
+  }).filter((l: DailyLog) => l.id && l.patientId && l.date);
+}
+
+export async function appendDailyLogToSheet(accessToken: string, spreadsheetId: string, log: DailyLog): Promise<void> {
+  const supervisorMap: Record<string, string> = {
+    self: 'ทานยาด้วยตนเอง',
+    family: 'ญาติ/ครอบครัว',
+    health_worker: 'เจ้าหน้าที่สาธารณสุข',
+    vhv: 'อสม.',
+  };
+
+  const values = [
+    [
+      log.id,
+      log.patientId,
+      log.date,
+      log.takenMedication ? 'ทานแล้ว' : 'ยังไม่ได้ทาน/ขาดทานยา',
+      log.medicationTime || '',
+      supervisorMap[log.supervisorType] || log.supervisorType,
+      log.supervisorName || '',
+      log.symptoms.cough ? 'มี' : 'ไม่มี',
+      log.symptoms.coughBlood ? 'มี' : 'ไม่มี',
+      log.symptoms.fever ? 'มี' : 'ไม่มี',
+      log.symptoms.nightSweats ? 'มี' : 'ไม่มี',
+      log.symptoms.weightLoss ? 'มี' : 'ไม่มี',
+      log.symptoms.chestPain ? 'มี' : 'ไม่มี',
+      log.symptoms.fatigue ? 'มี' : 'ไม่มี',
+      log.symptoms.nauseaVomiting ? 'มี' : 'ไม่มี',
+      log.symptoms.rashItch ? 'มี' : 'ไม่มี',
+      log.symptoms.yellowSkinEyes ? 'มี' : 'ไม่มี',
+      log.symptoms.jointPain ? 'มี' : 'ไม่มี',
+      log.symptoms.visionChanges ? 'มี' : 'ไม่มี',
+      log.symptoms.numbnessHandsFeet ? 'มี' : 'ไม่มี',
+      log.severityLevel,
+      log.sideEffectsNotes || '',
+      log.patientMood || 'neutral',
+      log.recordedBy,
+      log.recordedAt || new Date().toISOString(),
+    ],
+  ];
+
+  const doAppend = () => fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(DAILY_LOGS_SHEET_NAME, 'A1')}:append?valueInputOption=USER_ENTERED`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ values }),
+    }
+  );
+
+  const res = await executeSheetWriteWithAutoInit(accessToken, spreadsheetId, doAppend);
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'ไม่สามารถบันทึกข้อมูลอาการลงใน Google Sheet ได้');
+  }
+}
+
+// ------------------- DELETION & RESET OPERATIONS -------------------
+
+export async function deletePatientFromSheet(accessToken: string, spreadsheetId: string, patientId: string): Promise<void> {
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, 'A:A')}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const rows: string[][] = data.values || [];
+    const rowIndex = rows.findIndex((row) => row[0] === patientId);
+    if (rowIndex >= 1) {
+      const sheetRowNum = rowIndex + 1;
+      // Blank out the row or clear it
+      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(PATIENTS_SHEET_NAME, `A${sheetRowNum}:AA${sheetRowNum}`)}:clear`;
+      await fetch(clearUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    }
+  } catch (err) {
+    console.error('Error deleting patient from sheet:', err);
+  }
+}
+
+export async function deleteContactFromSheet(accessToken: string, spreadsheetId: string, contactId: string): Promise<void> {
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(CONTACTS_SHEET_NAME, 'A:A')}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const rows: string[][] = data.values || [];
+    const rowIndex = rows.findIndex((row) => row[0] === contactId);
+    if (rowIndex >= 1) {
+      const sheetRowNum = rowIndex + 1;
+      const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(CONTACTS_SHEET_NAME, `A${sheetRowNum}:AD${sheetRowNum}`)}:clear`;
+      await fetch(clearUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    }
+  } catch (err) {
+    console.error('Error deleting contact from sheet:', err);
+  }
+}
+
+// ==========================================
+// HEALTHCARE WORKERS (บุคลากรทางการแพทย์)
+// ==========================================
+
+export async function fetchAllHealthcareWorkers(
+  accessToken: string,
+  spreadsheetId: string
+): Promise<HealthcareWorker[]> {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(HEALTHCARE_WORKERS_SHEET_NAME, 'A2:AJ')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+  if (!res.ok) {
+    await verifyAndInitSheets(accessToken, spreadsheetId);
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) return [];
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const rows: string[][] = data.values || [];
+
+  return rows.map((row, idx) => {
+    const rawId = (row[0] || '').trim();
+    const rawStaffId = (row[1] || '').trim();
+    const rawHn = (row[2] || '').trim();
+    const rawName = (row[3] || '').trim();
+
+    if (!rawName && !rawId) return null;
+    if (rawName === 'ชื่อ-นามสกุล' || rawId.includes('รหัสบุคลากร')) return null;
+
+    const workerId = rawId || (rawStaffId ? `HCW-${rawStaffId}` : `HCW-${Date.now()}-${idx + 1}`);
+
+    // Parse JSON CXR records if stored, else fallback
+    let cxrRecords: HcwCxrRecord[] = [];
+    if (row[27]) {
+      try {
+        cxrRecords = JSON.parse(row[27]);
+      } catch (e) {
+        cxrRecords = [];
+      }
+    }
+
+    // Parse symptoms
+    let symptoms = {
+      chronicCough: false,
+      coughDurationWeeks: 0,
+      coughBlood: false,
+      fever: false,
+      nightSweats: false,
+      weightLoss: false,
+      chestPain: false,
+      fatigue: false,
+    };
+    if (row[21]) {
+      try {
+        symptoms = JSON.parse(row[21]);
+      } catch (e) {
+        // fallback
+      }
+    }
+
+    const worker: HealthcareWorker = {
+      id: workerId,
+      staffId: rawStaffId || undefined,
+      hn: rawHn || undefined,
+      fullName: rawName || 'บุคลากรทางการแพทย์',
+      gender: (row[4] === 'หญิง' || row[4] === 'female' ? 'female' : row[4] === 'อื่นๆ' ? 'other' : 'male'),
+      age: Number(row[5]) || 30,
+      phone: row[6] || '',
+      email: row[7] || undefined,
+      department: row[8] || 'แผนกอายุรกรรม',
+      position: row[9] || 'พยาบาลวิชาชีพ',
+      employmentType: (row[10] as any) || 'permanent',
+      startDate: row[11] || undefined,
+      workLocation: row[12] || undefined,
+      status: (row[13] as any) || 'active',
+      resignationDate: row[14] || undefined,
+      resignationReason: row[15] || undefined,
+      resignationNotes: row[16] || undefined,
+      riskLevel: (row[17] as any) || 'medium',
+      exposureHistory: row[18] === 'เคย' || row[18] === 'true',
+      exposureDetails: row[19] || undefined,
+      pastTbHistory: row[20] === 'เคย' || row[20] === 'true',
+      symptoms,
+      latentTbTestType: (row[22] as any) || 'none',
+      latentTbTestResult: (row[23] as any) || undefined,
+      tptStatus: (row[24] as any) || 'not_indicated',
+      tptRegimen: (row[25] as any) || undefined,
+      cxrRecords,
+      notes: row[32] || undefined,
+      createdAt: row[33] || new Date().toISOString(),
+      updatedAt: row[34] || new Date().toISOString(),
+      lastUpdatedBy: row[35] || undefined,
+    };
+
+    return worker;
+  }).filter((w): w is HealthcareWorker => w !== null);
+}
+
+export async function saveHealthcareWorkerToSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  worker: HealthcareWorker
+): Promise<void> {
+  const genderLabel = worker.gender === 'female' ? 'หญิง' : worker.gender === 'other' ? 'อื่นๆ' : 'ชาย';
+  const records = worker.cxrRecords || [];
+  const latestCxr = records.length > 0 
+    ? [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] 
+    : null;
+
+  const rowValues = [
+    worker.id,
+    worker.staffId || '',
+    worker.hn || '',
+    worker.fullName,
+    genderLabel,
+    worker.age,
+    worker.phone,
+    worker.email || '',
+    worker.department,
+    worker.position,
+    worker.employmentType,
+    worker.startDate || '',
+    worker.workLocation || '',
+    worker.status,
+    worker.resignationDate || '',
+    worker.resignationReason || '',
+    worker.resignationNotes || '',
+    worker.riskLevel,
+    worker.exposureHistory ? 'เคย' : 'ไม่เคย',
+    worker.exposureDetails || '',
+    worker.pastTbHistory ? 'เคย' : 'ไม่เคย',
+    JSON.stringify(worker.symptoms || {}),
+    worker.latentTbTestType || 'none',
+    worker.latentTbTestResult || '',
+    worker.tptStatus || 'not_indicated',
+    worker.tptRegimen || '',
+    records.length,
+    JSON.stringify(records),
+    latestCxr?.date || '',
+    latestCxr?.result || '',
+    latestCxr?.resultDetail || '',
+    latestCxr?.nextScheduledDate || '',
+    worker.notes || '',
+    worker.createdAt || new Date().toISOString(),
+    worker.updatedAt || new Date().toISOString(),
+    worker.lastUpdatedBy || '',
+  ];
+
+  // Find existing row by ID or StaffID
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(HEALTHCARE_WORKERS_SHEET_NAME, 'A:D')}`;
+  let res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+  if (!res.ok) {
+    await verifyAndInitSheets(accessToken, spreadsheetId);
+    res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  }
+
+  const data = await res.json().catch(() => ({}));
+  const rows: string[][] = data.values || [];
+  const targetId = (worker.id || '').trim();
+  const targetStaffId = (worker.staffId || '').trim();
+
+  let existingRowIdx = -1;
+  for (let i = 1; i < rows.length; i++) {
+    const rowId = (rows[i][0] || '').trim();
+    const rowStaffId = (rows[i][1] || '').trim();
+    if ((targetId && rowId === targetId) || (targetStaffId && rowStaffId === targetStaffId)) {
+      existingRowIdx = i + 1;
+      break;
+    }
+  }
+
+  if (existingRowIdx !== -1) {
+    // Update existing row
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(HEALTHCARE_WORKERS_SHEET_NAME, `A${existingRowIdx}:AJ${existingRowIdx}`)}?valueInputOption=USER_ENTERED`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ values: [rowValues] }),
+      }
+    );
+  } else {
+    // Append new row
+    await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(HEALTHCARE_WORKERS_SHEET_NAME, 'A:AJ')}:append?valueInputOption=USER_ENTERED`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ values: [rowValues] }),
+      }
+    );
+  }
+}
+
+export async function deleteHealthcareWorkerFromSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  workerId: string
+): Promise<void> {
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(HEALTHCARE_WORKERS_SHEET_NAME, 'A:A')}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) return;
+
+    const data = await res.json().catch(() => ({}));
+    const rows: string[][] = data.values || [];
+    const targetId = workerId.trim();
+
+    let targetRow = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][0] || '').trim() === targetId) {
+        targetRow = i + 1;
+        break;
+      }
+    }
+
+    if (targetRow !== -1) {
+      await fetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${formatRange(HEALTHCARE_WORKERS_SHEET_NAME, `A${targetRow}:AJ${targetRow}`)}:clear`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
+  } catch (err) {
+    console.error('Error deleting healthcare worker from sheet:', err);
+  }
+}
+
+export async function pushAllLocalDataToSheet(
+  accessToken: string,
+  spreadsheetId: string,
+  data: {
+    patients: Patient[];
+    investigations: InvestigationForm[];
+    contacts: ContactPerson[];
+    followUps: ContactFollowUp[];
+    logs: DailyLog[];
+    healthcareWorkers?: HealthcareWorker[];
+  }
+): Promise<{ success: boolean; count: number }> {
+  await verifyAndInitSheets(accessToken, spreadsheetId);
+
+  const genderMap: Record<string, string> = { male: 'ชาย', female: 'หญิง', other: 'อื่นๆ' };
+  const riskMap: Record<string, string> = { high: 'เสี่ยงสูง', low: 'เสี่ยงต่ำ' };
+  const typeMap: Record<string, string> = {
+    household: 'ผู้สัมผัสร่วมบ้าน (Household)',
+    close: 'ผู้สัมผัสใกล้ชิด (Close Contact)',
+    workplace: 'ที่ทำงาน/สถานศึกษา',
+    other: 'อื่นๆ',
+  };
+  const supervisorMap: Record<string, string> = {
+    self: 'ทานยาด้วยตนเอง',
+    family: 'ญาติ/ครอบครัว',
+    health_worker: 'เจ้าหน้าที่สาธารณสุข',
+    vhv: 'อสม.',
+  };
+
+  const patientRows = data.patients.map(p => [
+    p.id,
+    p.hn,
+    p.fullName,
+    p.phone,
+    p.email || '',
+    p.ntipRegistrationDate || '',
+    p.diagnosisDate || '',
+    p.age || 0,
+    genderMap[p.gender] || p.gender,
+    p.nationalId || '',
+    p.treatmentRights || '',
+    p.address || '',
+    `${p.emergencyContact?.name || ''} - ${p.emergencyContact?.phone || ''}`,
+    p.treatmentCategory || 'Cat 1 (New)',
+    p.tbClassification || 'Pulmonary',
+    p.weightKg || 0,
+    p.treatmentRegimen || '2HRZE/4HR',
+    p.doctorName || '',
+    p.hospitalName || '',
+    p.householdContactsCount || 0,
+    p.nonHouseholdContactsCount || 0,
+    p.investigationStatus || 'pending',
+    p.status || 'active',
+    p.notes || '',
+    p.createdAt || new Date().toISOString(),
+    p.lastUpdatedBy || '',
+    p.updatedAt || new Date().toISOString(),
+  ]);
+
+  const investigationRows = data.investigations.map(inv => {
+    const hivLabel = inv.comorbidities?.hiv === 'positive' ? 'ผลบวก (+)' : inv.comorbidities?.hiv === 'negative' ? 'ผลลบ (-)' : 'ไม่ระบุ/ไม่ได้ตรวจ';
+    const prevTbLabel = inv.comorbidities?.previousTbHistory && inv.comorbidities.previousTbHistory !== 'no' ? 'เคย' : 'ไม่เคย';
+    return [
+      inv.id,
+      inv.patientId,
+      inv.patientHN,
+      inv.patientName,
+      inv.investigationDate,
+      inv.investigatorName,
+      inv.investigatorPosition || '',
+      inv.occupation || '',
+      inv.symptomOnsetDate || '',
+      inv.infectiousPeriodStart || '',
+      inv.infectiousPeriodEnd || '',
+      inv.tbClassification || '',
+      inv.afbSmearResult || '',
+      inv.afbSmearDate || '',
+      inv.geneXpertResult || '',
+      inv.geneXpertDate || '',
+      inv.cultureResult || '',
+      inv.initialCxrResult || '',
+      inv.initialCxrDate || '',
+      inv.symptoms?.chronicCough ? inv.symptoms.coughDurationWeeks : 0,
+      inv.symptoms?.coughBlood ? 'มี' : 'ไม่มี',
+      inv.symptoms?.fever ? 'มี' : 'ไม่มี',
+      inv.symptoms?.nightSweats ? 'มี' : 'ไม่มี',
+      inv.symptoms?.weightLoss ? 'มี' : 'ไม่มี',
+      inv.symptoms?.chestPain ? 'มี' : 'ไม่มี',
+      inv.symptoms?.fatigue ? 'มี' : 'ไม่มี',
+      hivLabel,
+      inv.comorbidities?.diabetes ? 'มี' : 'ไม่มี',
+      inv.comorbidities?.ckd ? 'มี' : 'ไม่มี',
+      inv.comorbidities?.smoking ? 'สูบ' : 'ไม่สูบ',
+      inv.comorbidities?.alcohol ? 'ดื่ม' : 'ไม่ดื่ม',
+      inv.comorbidities?.substanceAbuse ? 'มี' : 'ไม่มี',
+      prevTbLabel,
+      inv.livingConditions?.homeType || 'บ้านเดี่ยว',
+      inv.livingConditions?.ventilation || 'ดี (โปร่ง ถ่ายเทดี)',
+      inv.livingConditions?.totalResidents || 1,
+      inv.householdContactsCount || 0,
+      inv.under5ContactsCount || 0,
+      inv.nonHouseholdContactsCount || 0,
+      inv.riskAssessmentNotes || '',
+      inv.controlMeasures || '',
+      inv.supervisorReviewerName || '',
+      inv.recordedAt || new Date().toISOString(),
+    ];
+  });
+
+  const contactRows = data.contacts.map(contact => {
+    const genderLabel = contact.gender === 'female' ? 'หญิง' : contact.gender === 'other' ? 'อื่นๆ' : 'ชาย';
+    const typeLabel = contact.contactType === 'household' ? 'กลุ่มร่วมบ้าน (Household)' : 'กลุ่มนอกบ้าน (Non-household)';
+    const protocolLabel = contact.age > 5 ? 'อายุ > 5 ปี: CXR 4 ครั้ง (0, 6, 12, 18 เดือน)' : 'อายุ ≤ 5 ปี: ตรวจ IGRA / ให้ยาป้องกัน TPT';
+    const ntipLabel = contact.ntipStatus === 'entered' ? 'คีย์แล้ว' : 'ยังไม่ได้คีย์';
+    return [
+      contact.id,
+      contact.indexPatientId,
+      contact.indexPatientHN,
+      contact.indexPatientName,
+      typeLabel,
+      contact.relationship,
+      contact.hn,
+      contact.fullName,
+      genderLabel,
+      contact.age,
+      contact.treatmentRights,
+      contact.phone,
+      contact.email,
+      protocolLabel,
+      ntipLabel,
+      contact.ntipKeyCode || '',
+      contact.ntipKeyDate || '',
+      contact.screeningStatus,
+      contact.notes || '',
+      contact.createdAt || new Date().toISOString(),
+      contact.lastUpdatedBy || '',
+      contact.updatedAt || new Date().toISOString(),
+      contact.ntipNotes || '',
+      contact.cxrStatus || '',
+      contact.cxrRound || '',
+      contact.cxrDate || '',
+      contact.cxrResult || '',
+      contact.cxrResultDetail || '',
+      contact.cxrHospital || '',
+      contact.nextCxrDate || '',
+    ];
+  });
+
+  const followUpRows = data.followUps.map(fu => [
+    fu.id,
+    fu.contactId,
+    fu.indexPatientHN,
+    fu.contactHN,
+    fu.contactName,
+    fu.contactAge,
+    fu.stepType,
+    fu.scheduledDate,
+    fu.actualDate || '',
+    fu.status,
+    fu.testResult || 'pending',
+    fu.resultDetail || '',
+    fu.tptRegimen || 'none',
+    fu.hospitalOrFacility || '',
+    fu.recordedBy,
+    fu.notes || '',
+  ]);
+
+  const logRows = data.logs.map(log => [
+    log.id,
+    log.patientId,
+    log.date,
+    log.takenMedication ? 'ทานแล้ว' : 'ยังไม่ได้ทาน/ขาดทานยา',
+    log.medicationTime || '',
+    supervisorMap[log.supervisorType] || log.supervisorType,
+    log.supervisorName || '',
+    log.symptoms.cough ? 'มี' : 'ไม่มี',
+    log.symptoms.coughBlood ? 'มี' : 'ไม่มี',
+    log.symptoms.fever ? 'มี' : 'ไม่มี',
+    log.symptoms.nightSweats ? 'มี' : 'ไม่มี',
+    log.symptoms.weightLoss ? 'มี' : 'ไม่มี',
+    log.symptoms.chestPain ? 'มี' : 'ไม่มี',
+    log.symptoms.fatigue ? 'มี' : 'ไม่มี',
+    log.symptoms.nauseaVomiting ? 'มี' : 'ไม่มี',
+    log.symptoms.rashItch ? 'มี' : 'ไม่มี',
+    log.symptoms.yellowSkinEyes ? 'มี' : 'ไม่มี',
+    log.symptoms.jointPain ? 'มี' : 'ไม่มี',
+    log.symptoms.visionChanges ? 'มี' : 'ไม่มี',
+    log.symptoms.numbnessHandsFeet ? 'มี' : 'ไม่มี',
+    log.severityLevel,
+    log.sideEffectsNotes || '',
+    log.patientMood || 'neutral',
+    log.recordedBy,
+    log.recordedAt || new Date().toISOString(),
+  ]);
+
+  const batchUpdates: { range: string; values: any[][] }[] = [];
+
+  if (patientRows.length > 0) {
+    batchUpdates.push({
+      range: `'${PATIENTS_SHEET_NAME}'!A2:AA${patientRows.length + 1}`,
+      values: patientRows,
+    });
+  }
+
+  if (investigationRows.length > 0) {
+    batchUpdates.push({
+      range: `'${INVESTIGATION_SHEET_NAME}'!A2:AQ${investigationRows.length + 1}`,
+      values: investigationRows,
+    });
+  }
+
+  if (contactRows.length > 0) {
+    batchUpdates.push({
+      range: `'${CONTACTS_SHEET_NAME}'!A2:AD${contactRows.length + 1}`,
+      values: contactRows,
+    });
+  }
+
+  if (followUpRows.length > 0) {
+    batchUpdates.push({
+      range: `'${FOLLOW_UPS_SHEET_NAME}'!A2:P${followUpRows.length + 1}`,
+      values: followUpRows,
+    });
+  }
+
+  if (logRows.length > 0) {
+    batchUpdates.push({
+      range: `'${DAILY_LOGS_SHEET_NAME}'!A2:Y${logRows.length + 1}`,
+      values: logRows,
+    });
+  }
+
+  const hcwRows = (data.healthcareWorkers || []).map(w => {
+    const records = w.cxrRecords || [];
+    const latest = records.length > 0 
+      ? [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] 
+      : null;
+    return [
+      w.id,
+      w.staffId || '',
+      w.hn || '',
+      w.fullName,
+      w.gender === 'female' ? 'หญิง' : w.gender === 'other' ? 'อื่นๆ' : 'ชาย',
+      w.age,
+      w.phone,
+      w.email || '',
+      w.department,
+      w.position,
+      w.employmentType,
+      w.startDate || '',
+      w.workLocation || '',
+      w.status,
+      w.resignationDate || '',
+      w.resignationReason || '',
+      w.resignationNotes || '',
+      w.riskLevel,
+      w.exposureHistory ? 'เคย' : 'ไม่เคย',
+      w.exposureDetails || '',
+      w.pastTbHistory ? 'เคย' : 'ไม่เคย',
+      JSON.stringify(w.symptoms || {}),
+      w.latentTbTestType || 'none',
+      w.latentTbTestResult || '',
+      w.tptStatus || 'not_indicated',
+      w.tptRegimen || '',
+      records.length,
+      JSON.stringify(records),
+      latest?.date || '',
+      latest?.result || '',
+      latest?.resultDetail || '',
+      latest?.nextScheduledDate || '',
+      w.notes || '',
+      w.createdAt || new Date().toISOString(),
+      w.updatedAt || new Date().toISOString(),
+      w.lastUpdatedBy || '',
+    ];
+  });
+
+  if (hcwRows.length > 0) {
+    batchUpdates.push({
+      range: `'${HEALTHCARE_WORKERS_SHEET_NAME}'!A2:AJ${hcwRows.length + 1}`,
+      values: hcwRows,
+    });
+  }
+
+  if (batchUpdates.length > 0) {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        valueInputOption: 'USER_ENTERED',
+        data: batchUpdates,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'ไม่สามารถส่งข้อมูลทั้งหมดไปยัง Google Sheet ได้');
+    }
+  }
+
+  const totalCount = patientRows.length + investigationRows.length + contactRows.length + logRows.length + hcwRows.length;
+  return { success: true, count: totalCount };
+}
+
+export async function clearAllSheetData(accessToken: string, spreadsheetId: string): Promise<void> {
+  try {
+    const ranges = [
+      `${PATIENTS_SHEET_NAME}!A2:AA5000`,
+      `${INVESTIGATION_SHEET_NAME}!A2:AQ5000`,
+      `${CONTACTS_SHEET_NAME}!A2:AD5000`,
+      `${FOLLOW_UPS_SHEET_NAME}!A2:P5000`,
+      `${DAILY_LOGS_SHEET_NAME}!A2:Y10000`,
+      `${HEALTHCARE_WORKERS_SHEET_NAME}!A2:AJ5000`,
+    ];
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchClear`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ranges }),
+    });
+  } catch (err) {
+    console.error('Error clearing sheet data:', err);
+  }
+}
+
